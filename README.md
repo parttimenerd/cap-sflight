@@ -1,4 +1,19 @@
+# Made for the CAP-in-the-Pocket Project
 
+This branch includes all the CAP generated files and doesn't need NodeJS for development.
+It's hacky, but suffices to show how to "build" and "develop" CAP Java on an Android phone.
+
+Build and run it via
+
+````sh
+mvn spring-boot:run
+```
+
+To regenerate the files (on a NodeJS and Cargo enabled machine that isn't Android):
+
+```sh
+mvn spring-boot:run -Pgen
+```
 
 # Welcome to the CAP SFLIGHT App
 

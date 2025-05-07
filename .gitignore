@@ -1,10 +1,5 @@
 # CAP sflight
 _out
-*.db
-connection.properties
-default-*.json
-*.sql
-gen/
 node_modules/
 target/
 .reloadtrigger
@@ -27,11 +22,6 @@ mta_archives/
 *.log
 
 *.flattened-pom.xml
-
-srv/src/main/resources/edmx/**
-dist/
-/app/resources/
-/app/router/package-lock.json
 
 
 # IDEs
