@@ -6125,6 +6125,10 @@
             },
             "O"
           ],
+          "@Common.SideEffects.TargetProperties": [
+            "in/TotalPrice",
+            "in/BookingFee"
+          ],
           "params": {
             "percent": {
               "@assert.range": [
