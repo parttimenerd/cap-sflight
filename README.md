@@ -5,7 +5,7 @@ It's hacky, but suffices to show how to "build" and "develop" CAP Java on an And
 
 Build and run it via
 
-````sh
+```sh
 mvn spring-boot:run
 ```
 
