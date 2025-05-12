@@ -40,7 +40,7 @@ public class DeductDiscountHandler implements EventHandler {
 		Travel travel = draftService.run(context.cqn()).single(Travel.class);
 
 		BigDecimal discount = BigDecimal.valueOf(context.percent())
-				.divide(BigDecimal.valueOf(100), new MathContext(3));
+				.divide(BigDecimal.valueOf(10), new MathContext(3));
 
 		BigDecimal deductedBookingFee = travel.bookingFee().subtract(travel.bookingFee().multiply(discount))
 				.round(new MathContext(3));
