@@ -1,34 +1,26 @@
 package com.sap.cap.sflight.processor;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
-
-import static com.sap.cap.sflight.processor.SeatReservationService.INVENTORY_LOCK;
-import static com.sap.cap.sflight.processor.SeatReservationService.TIMEOUT_SEC;
-
 /**
- * Fixed version — no synchronized methods. All locking is coordinated by the controller.
+ * Broken version — holds INVENTORY monitor, then acquires BOOKING monitor inside,
+ * completing the 3-way circular dependency.
  */
 @Service
 public class SeatInventoryService {
 
-    public void confirmSeatUnsync(String passengerId) {
+    @Autowired private BookingLedgerService bookingLedger;
+
+    public synchronized void confirmSeat(String passengerId) {
         System.out.println("SeatInventory: confirming seat for " + passengerId);
+        // Back-edge that closes the cycle: INVENTORY → BOOKING
+        bookingLedger.finalizeBooking(passengerId);
     }
 
     @Scheduled(fixedDelay = 200)
     public void backgroundSync() {
-        try {
-            if (!INVENTORY_LOCK.tryLock(TIMEOUT_SEC, TimeUnit.SECONDS)) return;
-            try {
-                confirmSeatUnsync("SYNC-BGD");
-            } finally {
-                INVENTORY_LOCK.unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        confirmSeat("SYNC-BGD");
     }
 }

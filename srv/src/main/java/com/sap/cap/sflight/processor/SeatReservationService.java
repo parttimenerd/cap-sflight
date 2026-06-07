@@ -4,45 +4,36 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeoutException;
 
 /**
- * Fixed version — global lock ordering: BOOKING → PAYMENT → INVENTORY.
- * tryLock with a timeout prevents indefinite blocking on all code paths.
+ * Broken version — triggers the booking path and surfaces the deadlock as a
+ * FATAL error when the request hangs for more than 8 seconds.
+ *
+ * The deadlock cycle (BookingLedger → PaymentGateway → SeatInventory → BookingLedger)
+ * is created by @Scheduled background tasks on the three service classes firing
+ * every 200 ms while a request thread holds one of the locks.
  */
 @RestController
 public class SeatReservationService {
 
-    // Global lock ordering prevents circular waiting across all callers.
-    static final ReentrantLock BOOKING_LOCK   = new ReentrantLock();
-    static final ReentrantLock PAYMENT_LOCK   = new ReentrantLock();
-    static final ReentrantLock INVENTORY_LOCK = new ReentrantLock();
-    static final long TIMEOUT_SEC = 3;
-
-    @Autowired private BookingLedgerService  bookingLedger;
-    @Autowired private PaymentGatewayService paymentGateway;
-    @Autowired private SeatInventoryService  seatInventory;
+    @Autowired private BookingLedgerService bookingLedger;
 
     @GetMapping("/api/reserve-seat")
     public String reserveSeat() {
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            bookingLedger.recordBooking("PAX-4217");
+            return "Reservation completed successfully.";
+        });
         try {
-            if (!BOOKING_LOCK.tryLock(TIMEOUT_SEC, TimeUnit.SECONDS)) return "retry";
-            try {
-                if (!PAYMENT_LOCK.tryLock(TIMEOUT_SEC, TimeUnit.SECONDS)) return "retry";
-                try {
-                    if (!INVENTORY_LOCK.tryLock(TIMEOUT_SEC, TimeUnit.SECONDS)) return "retry";
-                    try {
-                        bookingLedger.recordBookingUnsync("PAX-4217");
-                        paymentGateway.chargePassengerUnsync("PAX-4217", 299.99);
-                        seatInventory.confirmSeatUnsync("PAX-4217");
-                        return "Reservation completed successfully.";
-                    } finally { INVENTORY_LOCK.unlock(); }
-                } finally { PAYMENT_LOCK.unlock(); }
-            } finally { BOOKING_LOCK.unlock(); }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return "Interrupted.";
+            return future.get(8, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            return "FATAL: Transaction 0x7F2A failed — unresolvable monitor contention.";
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
         }
     }
 }

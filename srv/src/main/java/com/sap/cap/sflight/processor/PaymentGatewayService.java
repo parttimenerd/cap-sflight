@@ -1,34 +1,24 @@
 package com.sap.cap.sflight.processor;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
-
-import static com.sap.cap.sflight.processor.SeatReservationService.PAYMENT_LOCK;
-import static com.sap.cap.sflight.processor.SeatReservationService.TIMEOUT_SEC;
-
 /**
- * Fixed version — no synchronized methods. All locking is coordinated by the controller.
+ * Broken version — holds PAYMENT monitor, then acquires INVENTORY monitor inside.
  */
 @Service
 public class PaymentGatewayService {
 
-    public void chargePassengerUnsync(String passengerId, double amount) {
+    @Autowired private SeatInventoryService seatInventory;
+
+    public synchronized void chargePassenger(String passengerId, double amount) {
         System.out.println("PaymentGateway: charging " + passengerId + " $" + amount);
+        seatInventory.confirmSeat(passengerId);
     }
 
     @Scheduled(fixedDelay = 200)
     public void backgroundReconcile() {
-        try {
-            if (!PAYMENT_LOCK.tryLock(TIMEOUT_SEC, TimeUnit.SECONDS)) return;
-            try {
-                chargePassengerUnsync("RECONCILE-BGD", 0.0);
-            } finally {
-                PAYMENT_LOCK.unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        chargePassenger("RECONCILE-BGD", 0.0);
     }
 }

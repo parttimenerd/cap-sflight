@@ -1,39 +1,31 @@
 package com.sap.cap.sflight.processor;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
-
-import static com.sap.cap.sflight.processor.SeatReservationService.BOOKING_LOCK;
-import static com.sap.cap.sflight.processor.SeatReservationService.TIMEOUT_SEC;
-
 /**
- * Fixed version — no synchronized methods. All locking is done by the controller
- * using a globally ordered set of ReentrantLocks to prevent circular waiting.
+ * Broken version — uses synchronized to create a hidden circular dependency:
+ *   BookingLedger → PaymentGateway → SeatInventory → BookingLedger
  */
 @Service
 public class BookingLedgerService {
 
-    public void recordBookingUnsync(String passengerId) {
+    @Autowired private PaymentGatewayService paymentGateway;
+
+    // Holds BOOKING monitor, then acquires PAYMENT monitor inside.
+    public synchronized void recordBooking(String passengerId) {
         System.out.println("BookingLedger: recording booking for " + passengerId);
+        paymentGateway.chargePassenger(passengerId, 299.99);
     }
 
-    public void finalizeBookingUnsync(String passengerId) {
+    // Entry point for the circular back-edge: SeatInventory calls this.
+    public synchronized void finalizeBooking(String passengerId) {
         System.out.println("BookingLedger: finalizing booking for " + passengerId);
     }
 
     @Scheduled(fixedDelay = 200)
     public void backgroundAudit() {
-        try {
-            if (!BOOKING_LOCK.tryLock(TIMEOUT_SEC, TimeUnit.SECONDS)) return;
-            try {
-                recordBookingUnsync("AUDIT-BGD");
-            } finally {
-                BOOKING_LOCK.unlock();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        recordBooking("AUDIT-BGD");
     }
 }
